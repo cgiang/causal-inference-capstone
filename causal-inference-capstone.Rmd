@@ -1,0 +1,46 @@
+---
+title: "What is the causal effect of sleeping time on well-being?"
+author: "Charlotte Giang, Yunyang Zhong"
+date: "10/11/2020"
+output: html_document
+---
+
+```{r}
+library(ipumsr)
+ddi <- read_ipums_ddi("atus_00001.xml")
+data <- read_ipums_micro(ddi)
+```
+
+```{r}
+mod1 <- lm(WB_RESP~Sleeping_time, data = data)
+summary(mod1)
+```
+
+```{r}
+library(dagitty)
+testImplications <- function( covariance.matrix, sample.size ){
+	library(ggm)
+	tst <- function(i){ pcor.test( pcor(i,covariance.matrix), length(i)-2, sample.size )$pvalue }
+tos <- function(i){ paste(i,collapse=" ") }
+implications <- list(c("Sleeping_time","Employment status (spouse or partner)","Spouse or unmarried partner in household","Family income"),
+		c("Sleeping_time","Highest level of school completed (spouse or partner)","Family income","Spouse or unmarried partner in household"),
+		c("Sleeping_time","Life satisfaction","Person weight","Well-Being","Spouse or unmarried partner in household","Family income"),
+		c("Employment status (spouse or partner)","Person weight"),
+		c("Employment status (spouse or partner)","Life satisfaction","Spouse or unmarried partner in household","Family income"),
+		c("Employment status (spouse or partner)","Well-Being","Person weight","Sleeping_time"),
+		c("Employment status (spouse or partner)","Well-Being","Spouse or unmarried partner in household","Family income"),
+		c("Highest level of school completed (spouse or partner)","Spouse or unmarried partner in household"),
+		c("Highest level of school completed (spouse or partner)","Person weight"),
+		c("Highest level of school completed (spouse or partner)","Life satisfaction","Spouse or unmarried partner in household","Family income"),
+		c("Highest level of school completed (spouse or partner)","Well-Being","Person weight","Sleeping_time"),
+		c("Highest level of school completed (spouse or partner)","Well-Being","Spouse or unmarried partner in household","Family income"),
+		c("Spouse or unmarried partner in household","Person weight"),
+		c("Spouse or unmarried partner in household","Well-Being","Person weight","Sleeping_time"),
+		c("Person weight","Family income"),
+		c("Well-Being","Family income","Person weight","Sleeping_time"))
+	data.frame( implication=unlist(lapply(implications,tos)),
+		pvalue=unlist( lapply( implications, tst ) ) )
+
+}
+```
+
