@@ -1,5 +1,5 @@
 ---
-title: "What is the causal effect of sleeping time on well-being?"
+title: "What is the causal effect of sleeping time on life satisfaction?"
 author: "Charlotte Giang, Yunyang Zhong"
 date: "10/11/2020"
 output: html_document
@@ -10,7 +10,7 @@ library(ipumsr)
 ddi <- read_ipums_ddi("atus_00001.xml")
 data <- read_ipums_micro(ddi)
 library(dplyr) 
-data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WB_RESP, WBLADDER, HH_EC)
+data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WB_RESP, WBLADDER, WBELIGTIME, caring_HH_adults)
 data <- data %>%
   filter(!is.na(WBLADDER)) %>%
   filter(WBLADDER!=999)
