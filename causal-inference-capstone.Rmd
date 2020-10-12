@@ -5,15 +5,19 @@ date: "10/11/2020"
 output: html_document
 ---
 
-```{r}
+```{r,eval=TRUE}
 library(ipumsr)
 ddi <- read_ipums_ddi("atus_00001.xml")
 data <- read_ipums_micro(ddi)
+library(dplyr) 
+data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WB_RESP, WBLADDER, HH_EC)
+data <- data %>%
+  filter(!is.na(WBLADDER)) %>%
+  filter(WBLADDER!=999)
 ```
 
 ```{r}
-mod1 <- lm(WBLADDER~Sleeping_time, data = data)
-summary(mod1)
+summary(data)
 ```
 
 ![](dag2.png)
@@ -61,3 +65,47 @@ bb=\"0,0,1,1\"
 ")
 plot(dag)
 ```
+
+```{r}
+library(ggplot2)
+ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER))+geom_point()+geom_smooth()
+
+
+mod1 <- lm(WBLADDER~Sleeping_time, data = data)
+summary(mod1)
+```
+
+```{r}
+ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER,color=factor(SPOUSEPRES)))+geom_point()+geom_smooth()
+
+mod2 <- lm(WBLADDER~Sleeping_time+SPOUSEPRES, data = data)
+summary(mod2)
+```
+
+```{r}
+mod3 <- lm(WBLADDER~Sleeping_time+SPOUSEPRES+WT06, data = data)
+summary(mod3)
+
+mod4 <- lm(WBLADDER~WT06, data = data)
+summary(mod4)
+```
+
+```{r}
+library(splines)
+ggplot(data, aes(y = SPOUSEPRES, x = Sleeping_time)) +
+    geom_point() +
+    geom_smooth(se = FALSE, color = "blue") +
+    geom_smooth(formula = y~ns(x,2), method = "glm",
+        method.args = list(family="binomial"),
+        se = FALSE, color = "red"
+    )
+
+ggplot(data, aes(y = WT06, x = Sleeping_time)) +
+    geom_point() +
+    geom_smooth(se = FALSE, color = "blue") +
+    geom_smooth(formula = y~ns(x,2), method = "glm",
+        method.args = list(family="binomial"),
+        se = FALSE, color = "red"
+    )
+```
+
