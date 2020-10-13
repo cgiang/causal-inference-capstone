@@ -5,12 +5,12 @@ date: "10/11/2020"
 output: html_document
 ---
 
-```{r,eval=TRUE}
+```{r,eval=TRUE, warning=FALSE, message=FALSE}
 library(ipumsr)
 ddi <- read_ipums_ddi("atus_00001.xml")
 data <- read_ipums_micro(ddi)
 library(dplyr) 
-data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WB_RESP, WBLADDER, WBELIGTIME, caring_HH_adults)
+data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WBLADDER, WBELIGTIME, caring_HH_adults)
 data <- data %>%
   filter(!is.na(WBLADDER)) %>%
   filter(WBLADDER!=999)
@@ -22,10 +22,11 @@ summary(data)
 
 ![](dag2.png)
 
-Adjustment, total effect: Family income, Spouse or unmarried partner in household
-Adjustment, direct effect: Family income, Person weight, Spouse or unmarried partner in household, Well-being
+> Adjustment, total effect: Family income, Spouse or unmarried partner in household
 
-```{r, echo=FALSE, message=FALSE}
+> Adjustment, direct effect: Family income, Person weight, Spouse or unmarried partner in household, Well-being
+
+```{r, echo=FALSE, message=FALSE, eval=FALSE}
 library(dagitty)
 dag <- dagitty("dag {
 bb=\"0,0,1,1\"
@@ -69,25 +70,10 @@ plot(dag)
 ```{r}
 library(ggplot2)
 ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER))+geom_point()+geom_smooth()
-
-
-mod1 <- lm(WBLADDER~Sleeping_time, data = data)
-summary(mod1)
 ```
 
 ```{r}
 ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER,color=factor(SPOUSEPRES)))+geom_point()+geom_smooth()
-
-mod2 <- lm(WBLADDER~Sleeping_time+SPOUSEPRES, data = data)
-summary(mod2)
-```
-
-```{r}
-mod3 <- lm(WBLADDER~Sleeping_time+SPOUSEPRES+WT06, data = data)
-summary(mod3)
-
-mod4 <- lm(WBLADDER~WT06, data = data)
-summary(mod4)
 ```
 
 ```{r}
@@ -109,3 +95,121 @@ ggplot(data, aes(y = WT06, x = Sleeping_time)) +
     )
 ```
 
+```{r, message=FALSE}
+mod1 <- lm(WBLADDER~Sleeping_time, data = data)
+summary(mod1)
+
+mod2 <- lm(WBELIGTIME~WT06, data = data)
+summary(mod2)
+```
+
+```{r}
+mod3 <- lm(WBLADDER~caring_HH_adults, data = data)
+summary(mod3)
+
+mod4 <- lm(WBLADDER~WT06, data = data)
+summary(mod4)
+```
+
+```{r, message=FALSE}
+mod5 <- lm(Sleeping_time~WT06, data = data)
+summary(mod5)
+
+mod6 <- lm(WBLADDER~SPOUSEPRES, data = data)
+summary(mod6)
+
+mod7 <- lm(Sleeping_time~SPOUSEPRES, data = data)
+summary(mod7)
+
+mod8 <- lm(WBLADDER~WBELIGTIME, data = data)
+summary(mod8)
+
+mod9 <- lm(Sleeping_time~WBELIGTIME, data = data)
+summary(mod9)
+
+mod10 <- lm(WBLADDER~Traveling, data = data)
+summary(mod10)
+```
+
+```{r}
+mod11 <- lm(Traveling~caring_HH_adults, data = data)
+summary(mod11)
+```
+
+```{r}
+mod12 <- lm(SPOUSEPRES~caring_HH_adults, data = data)
+summary(mod12)
+
+mod13 <- lm(SPOUSEPRES~Traveling, data = data)
+summary(mod13)
+
+mod14 <- lm(SPOUSEPRES~SPEMPSTAT, data = data)
+summary(mod14)
+
+mod15 <- lm(SPEDUC~SPEMPSTAT, data = data)
+summary(mod15)
+```
+
+> All associations in the dagitty graph above are checked. Except insignificant associations between life satisfaction and weight, life satisfaction and elderly care, and traveling and elderly care, the rest are all strong associations.
+
+```{r}
+mod16 <- lm(WBLADDER~Sleeping_time+WBELIGTIME, data = data)
+summary(mod16)
+
+mod17 <- lm(WT06~Sleeping_time+WBELIGTIME, data = data)
+summary(mod17)
+```
+
+> From model 16, controlling for well-being makes sleep and life satisfaction a strong association. Therefore, well-being must be a collider. From model 17, controlling for well-being makes sleep and weight a weak association. Therefore, neither well-being nor weight can be a collider in this set and thus well-being must point to weight and weight must point to sleep.
+
+```{r}
+mod18 <- lm(WBLADDER~Sleeping_time+SPOUSEPRES, data = data)
+summary(mod18)
+```
+
+> From model 18, controlling for number of partners makes sleep and life satisfaction a strong association. Therefore, number of partners must be a collider.
+
+![](dagitty-model.png)
+
+# not working
+```{r, echo=FALSE, message=FALSE, eval=FALSE}
+library(dagitty)
+dag <- dagitty("dag {
+bb="0,0,1,1"
+"# of partners" [pos="0.321,0.503"]
+"education of partners" [pos="0.666,0.214"]
+"elderly care" [pos="0.821,0.673"]
+"employment status of partners" [pos="0.393,0.208"]
+"family income" [latent,pos="0.495,0.350"]
+"life satisfaction" [outcome,pos="0.740,0.832"]
+"well-being" [pos="0.476,0.713"]
+sleep [exposure,pos="0.281,0.835"]
+travel [pos="0.726,0.433"]
+weight [pos="0.200,0.604"]
+"# of partners" -> "elderly care"
+"# of partners" -> "employment status of partners"
+"# of partners" -> "family income"
+"# of partners" -> travel
+"education of partners" -> "employment status of partners"
+"education of partners" -> "family income"
+"employment status of partners" -> "family income"
+"family income" -> "elderly care"
+"family income" -> "life satisfaction"
+"family income" -> sleep
+"family income" -> travel
+"life satisfaction" -> "# of partners"
+"life satisfaction" -> "well-being"
+"well-being" -> weight
+sleep -> "# of partners"
+sleep -> "life satisfaction"
+sleep -> "well-being"
+travel -> "life satisfaction"
+weight -> sleep
+}
+")
+plot(dag)
+```
+
+> The total effect cannot be estimated by covariate adjustment.
+
+> The direct effect cannot be estimated by covariate adjustment.
