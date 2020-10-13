@@ -5,6 +5,8 @@ date: "10/11/2020"
 output: html_document
 ---
 
+# Loading data
+
 ```{r,eval=TRUE, warning=FALSE, message=FALSE}
 library(ipumsr)
 ddi <- read_ipums_ddi("atus_00001.xml")
@@ -13,12 +15,84 @@ library(dplyr)
 data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WBLADDER, WBELIGTIME, caring_HH_adults)
 data <- data %>%
   filter(!is.na(WBLADDER)) %>%
-  filter(WBLADDER!=999)
+  filter(WBLADDER > -1 & WBLADDER < 11) %>%
+  filter(SPEDUC < 44) %>%
+  filter(SPEMPSTAT < 7)
+data$WBLADDER = as.numeric(data$WBLADDER)
+data$WT06 = as.numeric(data$WT06)
 ```
+
+<br><br>
+
+# Causal discovery 
+
+```{r, echo=FALSE, message=FALSE, eval=FALSE}
+library(dagitty)
+dag <- dagitty("dag {
+bb=\"0,0,1,1\"
+\"# of partners\" [pos=\"0.321,0.503\"]
+\"education of partners\" [pos=\"0.666,0.214\"]
+\"elderly care\" [pos=\"0.821,0.673\"]
+\"employment status of partners\" [pos=\"0.393,0.208\"]
+\"family income\" [latent,pos=\"0.495,0.350\"]
+\"life satisfaction\" [outcome,pos=\"0.740,0.832\"]
+\"well-being\" [pos=\"0.476,0.713\"]
+\"sleep\" [exposure,pos=\"0.281,0.835\"]
+\"travel\" [pos=\"0.726,0.433\"]
+\"weight\" [pos=\"0.200,0.604\"]
+\"# of partners\" -> \"elderly care\"
+\"# of partners\" -> \"employment status of partners\"
+\"# of partners\" -> \"family income\"
+\"# of partners\" -> \"travel\"
+\"education of partners\" -> \"employment status of partners\"
+\"education of partners\" -> \"family income\"
+\"employment status of partners\" -> \"family income\"
+\"family income\" -> \"elderly care\"
+\"family income\" -> \"life satisfaction\"
+\"family income\" -> \"sleep\"
+\"family income\" -> \"travel\"
+\"life satisfaction\" -> \"# of partners\"
+\"life satisfaction\" -> \"well-being\"
+\"well-being\" -> \"weight\"
+\"sleep\" -> \"# of partners\"
+\"sleep\" -> \"life satisfaction\"
+\"sleep\" -> \"well-being\"
+\"travel\" -> \"life satisfaction\"
+\"weight\" -> \"sleep\"
+}
+")
+plot(dag)
+```
+
+> The total effect cannot be estimated by covariate adjustment.
+
+> The direct effect cannot be estimated by covariate adjustment.
+
+```{r, message = FALSE}
+library(pcalg)
+
+suff_stat <- list(C = cor(data), n = nrow(data))
+pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.01, skel.method = "stable.fast")
+
+plot(pc_data, main = "")
+```
+
+<br><br>
+
+# Subject knowledge causal graph
+
+```{r}
+# Convert variable type -- run AFTER using pcalg package
+data$SPOUSEPRES = as.factor(data$SPOUSEPRES)
+data$SPEDUC = as.factor(data$SPEDUC)
+data$SPEMPSTAT = as.factor(data$SPEMPSTAT)
+```
+
 
 ```{r}
 summary(data)
 ```
+
 
 ![](dag2.png)
 
@@ -67,13 +141,26 @@ bb=\"0,0,1,1\"
 plot(dag)
 ```
 
+<br><br>
+
+# Exploratory data analysis
+
 ```{r}
 library(ggplot2)
 ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER))+geom_point()+geom_smooth()
 ```
 
+
+
 ```{r}
 ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER,color=factor(SPOUSEPRES)))+geom_point()+geom_smooth()
+```
+
+```{r}
+# Alternatively
+ggplot(data, aes(x = Sleeping_time, y = WBLADDER)) +
+    geom_boxplot() +
+    facet_grid(~SPOUSEPRES) 
 ```
 
 ```{r}
@@ -94,6 +181,8 @@ ggplot(data, aes(y = WT06, x = Sleeping_time)) +
         se = FALSE, color = "red"
     )
 ```
+
+
 
 ```{r, message=FALSE}
 mod1 <- lm(WBLADDER~Sleeping_time, data = data)
@@ -137,16 +226,16 @@ summary(mod11)
 ```
 
 ```{r}
-mod12 <- lm(SPOUSEPRES~caring_HH_adults, data = data)
+mod12 <- glm(SPOUSEPRES~caring_HH_adults, family = "binomial", data = data)
 summary(mod12)
 
-mod13 <- lm(SPOUSEPRES~Traveling, data = data)
+mod13 <- glm(SPOUSEPRES~Traveling, family = "binomial", data = data)
 summary(mod13)
 
-mod14 <- lm(SPOUSEPRES~SPEMPSTAT, data = data)
+mod14 <- glm(SPOUSEPRES~SPEMPSTAT, family = "binomial", data = data)
 summary(mod14)
 
-mod15 <- lm(SPEDUC~SPEMPSTAT, data = data)
+mod15 <- glm(SPEDUC~SPEMPSTAT, , family = "binomial", data = data)
 summary(mod15)
 ```
 
@@ -171,54 +260,8 @@ summary(mod18)
 
 ![](dagitty-model.png)
 
-# not working
-```{r, echo=FALSE, message=FALSE, eval=FALSE}
-library(dagitty)
-dag <- dagitty("dag {
-bb="0,0,1,1"
-"# of partners" [pos="0.321,0.503"]
-"education of partners" [pos="0.666,0.214"]
-"elderly care" [pos="0.821,0.673"]
-"employment status of partners" [pos="0.393,0.208"]
-"family income" [latent,pos="0.495,0.350"]
-"life satisfaction" [outcome,pos="0.740,0.832"]
-"well-being" [pos="0.476,0.713"]
-sleep [exposure,pos="0.281,0.835"]
-travel [pos="0.726,0.433"]
-weight [pos="0.200,0.604"]
-"# of partners" -> "elderly care"
-"# of partners" -> "employment status of partners"
-"# of partners" -> "family income"
-"# of partners" -> travel
-"education of partners" -> "employment status of partners"
-"education of partners" -> "family income"
-"employment status of partners" -> "family income"
-"family income" -> "elderly care"
-"family income" -> "life satisfaction"
-"family income" -> sleep
-"family income" -> travel
-"life satisfaction" -> "# of partners"
-"life satisfaction" -> "well-being"
-"well-being" -> weight
-sleep -> "# of partners"
-sleep -> "life satisfaction"
-sleep -> "well-being"
-travel -> "life satisfaction"
-weight -> sleep
-}
-")
-plot(dag)
-```
+<br><br>
 
-> The total effect cannot be estimated by covariate adjustment.
+# Mediation analysis
 
-> The direct effect cannot be estimated by covariate adjustment.
-
-```{r}
-library(pcalg)
-suff_stat <- list(C = cor(data), n = nrow(data))
-pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.01, skel.method = "stable.fast")
-
-plot(pc_data, main = "")
-```
 
