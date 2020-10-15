@@ -12,19 +12,36 @@ library(ipumsr)
 ddi <- read_ipums_ddi("atus_00001.xml")
 data <- read_ipums_micro(ddi)
 library(dplyr) 
-data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WBLADDER, WBELIGTIME, caring_HH_adults)
+data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WBLADDER, WBELIGTIME, caring_HH_adults, SPEARNWEEK)
+data$WBLADDER = as.numeric(data$WBLADDER)
+data$WT06 = as.numeric(data$WT06)
+data$SPEARNWEEK = as.numeric(data$SPEARNWEEK)
 data <- data %>%
   filter(!is.na(WBLADDER)) %>%
   filter(WBLADDER > -1 & WBLADDER < 11) %>%
   filter(SPEDUC < 44) %>%
-  filter(SPEMPSTAT < 7)
-data$WBLADDER = as.numeric(data$WBLADDER)
-data$WT06 = as.numeric(data$WT06)
+  filter(SPEMPSTAT < 7) %>%
+  filter(SPEARNWEEK < 99999)
+```
+
+```{r}
+summary(data)
 ```
 
 <br><br>
 
 # Causal discovery 
+
+
+```{r, message = FALSE}
+library(pcalg)
+
+suff_stat <- list(C = cor(data), n = nrow(data))
+pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.01, skel.method = "stable.fast")
+
+plot(pc_data, main = "")
+```
+
 
 ```{r, echo=FALSE, message=FALSE, eval=FALSE}
 library(dagitty)
@@ -68,15 +85,6 @@ plot(dag)
 
 > The direct effect cannot be estimated by covariate adjustment.
 
-```{r, message = FALSE}
-library(pcalg)
-
-suff_stat <- list(C = cor(data), n = nrow(data))
-pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.01, skel.method = "stable.fast")
-
-plot(pc_data, main = "")
-```
-
 <br><br>
 
 # Subject knowledge causal graph
@@ -96,46 +104,47 @@ summary(data)
 
 ![](dag2.png)
 
-> Adjustment, total effect: Family income, Spouse or unmarried partner in household
+> Adjustment, total effect: # partners, family income
 
-> Adjustment, direct effect: Family income, Person weight, Spouse or unmarried partner in household, Well-being
+> Adjustment, direct effect: # partners, family income, weight, well-being
 
 ```{r, echo=FALSE, message=FALSE, eval=FALSE}
 library(dagitty)
 dag <- dagitty("dag {
-bb=\"0,0,1,1\"
-\"Employment status (spouse or partner)\" [pos=\"-0.4,0.3\"]
-\"Family income\" [pos=\"-0.307,0.522\"]
-\"Highest level of school completed (spouse or partner)\" [pos=\"-0.122,0.392\"]
-\"Household elderly care\" [pos=\"0.137,0.841\"]
-\"Life satisfaction\" [outcome,pos=\"-0.112,1.103\"]
-\"Person weight\" [pos=\"-1.014,0.756\"]
-\"Spouse or unmarried partner in household\" [pos=\"-0.801,0.599\"]
-\"Traveling time\" [pos=\"-0.001,0.596\"]
-\"Well-being\" [pos=\"-0.584,1.012\"]
-\"Sleeping_time\" [exposure,pos=\"-1.108,1.101\"]
-\"Employment status (spouse or partner)\" -> \"Family income\"
-\"Family income\" -> \"Household elderly care\"
-\"Family income\" -> \"Life satisfaction\"
-\"Family income\" -> \"Traveling time\"
-\"Family income\" -> \"Sleeping_time\"
-\"Highest level of school completed (spouse or partner)\" -> \"Employment status (spouse or partner)\"
-\"Highest level of school completed (spouse or partner)\" -> \"Family income\"
-\"Household elderly care\" -> \"Life satisfaction\"
-\"Household elderly care\" -> \"Traveling time\"
-\"Person weight\" -> \"Life satisfaction\"
-\"Person weight\" -> \"Well-being\"
-\"Spouse or unmarried partner in household\" -> \"Employment status (spouse or partner)\"
-\"Spouse or unmarried partner in household\" -> \"Family income\"
-\"Spouse or unmarried partner in household\" -> \"Household elderly care\"
-\"Spouse or unmarried partner in household\" -> \"Life satisfaction\"
-\"Spouse or unmarried partner in household\" -> \"Traveling time\"
-\"Spouse or unmarried partner in household\" -> \"Sleeping_time\"
-\"Traveling time\" -> \"Life satisfaction\"
-\"Well-being\" -> \"Life satisfaction\"
-\"Sleeping_time\" -> \"Life satisfaction\"
-\"Sleeping_time\" -> \"Person weight\"
-\"Sleeping_time\" -> \"Well-being\"
+\"# partners\" [pos=\"-1.654,0.264\"]
+\"elderly care time\" [pos=\"-0.216,1.101\"]
+\"family income\" [latent,pos=\"-0.960,0.028\"]
+\"life satisfaction\" [outcome,pos=\"-0.638,1.638\"]
+\"sleeping time\" [exposure,pos=\"-1.983,1.629\"]
+\"spouse education\" [pos=\"-0.427,-0.204\"]
+\"spouse employment status\" [pos=\"-1.307,-0.231\"]
+\"spouse weekly earnings\" [pos=\"-0.694,-0.458\"]
+\"traveling time\" [pos=\"-0.277,0.167\"]
+\"well-being\" [pos=\"-1.307,1.287\"]
+weight [pos=\"-1.996,0.499\"]
+\"# partners\" -> \"elderly care time\"
+\"# partners\" -> \"family income\"
+\"# partners\" -> \"life satisfaction\"
+\"# partners\" -> \"sleeping time\"
+\"# partners\" -> \"spouse employment status\"
+\"# partners\" -> \"traveling time\"
+\"elderly care time\" -> \"life satisfaction\"
+\"elderly care time\" -> \"traveling time\"
+\"family income\" -> \"elderly care time\"
+\"family income\" -> \"life satisfaction\"
+\"family income\" -> \"sleeping time\"
+\"family income\" -> \"spouse weekly earnings\"
+\"family income\" -> \"traveling time\"
+\"sleeping time\" -> \"life satisfaction\"
+\"sleeping time\" -> \"well-being\"
+\"sleeping time\" -> weight
+\"spouse education\" -> \"family income\"
+\"spouse education\" -> \"spouse employment status\"
+\"spouse employment status\" -> \"family income\"
+\"traveling time\" -> \"life satisfaction\"
+\"well-being\" -> \"life satisfaction\"
+weight -> \"life satisfaction\"
+weight -> \"well-being\"
 }
 ")
 plot(dag)
@@ -262,6 +271,148 @@ summary(mod18)
 
 <br><br>
 
-# Mediation analysis
+# IPW with sensitivity analysis for unmeasured confounder 
+
+## IPW
+
+> To achieve conditional exchangeability, condition on # partners and  family income
+
+> Family income is unmeasured so use proxy = spouse weekly earnings
+
+**Linearity?**
+
+```{r}
+ggplot(data, aes(x = SPEARNWEEK, y = Sleeping_time)) +
+    geom_point() +
+    geom_smooth(se = FALSE, color = "blue") +
+    geom_smooth(formula = y~x,
+        se = FALSE, color = "red"
+    )
+```
+
+[source code](https://remlapmot.github.io/cibookex-r/ip-weighting-and-marginal-structural-models.html#program-12.4)
+
+```{r}
+ps_mod = lm(Sleeping_time ~ SPOUSEPRES + SPEARNWEEK, data = data)
+
+# estimation of denominator of ip weights
+p <- predict(ps_mod, type = "response")
+ps <-
+  dnorm(data$Sleeping_time,
+        p,
+        summary(ps_mod)$sigma)
+
+# estimation of ip weights
+
+data$ip_weight <- 1 / ps
+summary(data$ip_weight)
+```
+
+
+```{r, message=FALSE}
+library(survey) 
+
+design <- svydesign(ids = ~0, weights = data$ip_weight, data = data)
+
+msm_fit <- svyglm(
+    WBLADDER ~ Sleeping_time,
+    data = data,
+    design = design
+)
+summary(msm_fit)
+```
+
+
+```{r}
+msm_fit <- svyglm(
+    WBLADDER ~ Sleeping_time*SPOUSEPRES,
+    data = data,
+    design = design
+)
+summary(msm_fit)
+```
+
+```{r}
+# Comparison
+summary(lm(WBLADDER ~ Sleeping_time + SPOUSEPRES, data = data))
+```
+
+
+## Sensitivity analysis for unmeasured confounder
+
+```{r, warning=FALSE, message=FALSE}
+sensitivity_analysis_time <- function(.data, model_A, model_Y, assoc_A, assoc_Y) {
+    n <- nrow(.data)
+
+    # Obtain residuals with residuals()
+    # Obtain residual variances with sigma()
+    res_A <- residuals(model_A)
+    res_var_A <- sigma(model_A)^2
+    res_Y <- residuals(model_Y)
+    res_var_Y <- sigma(model_Y)^2
+
+    # Compute the mean and variance of U given A and Y
+    mean_U_term1 <- (assoc_A/res_var_A)*res_A
+    mean_U_term2 <- (((res_var_A - assoc_A^2)*assoc_Y)/(res_var_A*res_var_Y))*res_Y
+    mean_U <- mean_U_term1 + mean_U_term2
+
+    var_U_term1 <- (res_var_A - assoc_A^2)/(res_var_A*res_var_Y)
+    var_U_term2 <- res_var_Y - assoc_Y^2 + ((assoc_A*assoc_Y)^2)/res_var_A
+    var_U <- var_U_term1*var_U_term2
+
+    # Simulate U and add it to the data
+    U <- rnorm(n, mean = mean_U, sd = sqrt(var_U))
+    .data$U <- U
+
+    # Refit model to estimate the causal effect 
+    updated_model <- lm(WBLADDER ~ Sleeping_time + SPEARNWEEK + SPOUSEPRES + U, data = .data)
+    
+    list(c(
+        estimate = unname(coefficients(updated_model)["Sleeping_time"]), 
+        ci_95_lower = confint(updated_model)["Sleeping_time",1],
+        ci_95_upper = confint(updated_model)["Sleeping_time",2]
+    ))
+}
+
+# Begin the sensitivity analysis
+
+# Fit required models for the sensitivity analysis
+mod_A <- lm(Sleeping_time ~ SPEARNWEEK + SPOUSEPRES, data = data)
+mod_Y <- lm(WBLADDER ~ Sleeping_time + SPEARNWEEK + SPOUSEPRES, data = data)
+
+# Set up degree of association between U and A and between U and Y
+# The U->A associations have some constraints: we set up values 
+# for the U->A associations that are at most equal to the
+# standard deviation of the residuals from the model for A.
+U_A_assocs <- seq(from = 50, to = 100, by = 10)
+U_Y_assocs <- seq(from = 0.5, to = 1.6, by = 0.1)
+
+# Form all combinations of the U->A and U->Y sensitivity parameters
+sens_data <- expand.grid(U_A = U_A_assocs, U_Y = U_Y_assocs)
+
+# Run sensitivity analysis
+sens_data <- sens_data %>%
+    group_by(U_A, U_Y) %>%
+    mutate(sens = sensitivity_analysis_time(data, mod_A, mod_Y, U_A, U_Y))
+# Collect sensitivity analysis results in a data.frame
+sens_data <- bind_cols(sens_data[,1:2], bind_rows(sens_data$sens))
+
+
+# Plot results
+prepender <- function(string, prefix = "U -> Y strength:") paste(prefix, string)
+
+ggplot(sens_data, aes(x = U_A, y = estimate)) +
+    geom_ribbon(aes(ymin = ci_95_lower, ymax = ci_95_upper), fill = "grey70") +
+    geom_line() +
+    geom_hline(aes(yintercept = coefficients(mod_Y)["Sleeping_time"]), color = "blue", lty = "dashed") +
+    geom_hline(aes(yintercept = 0), color = "black") +
+    facet_wrap(~U_Y, labeller = as_labeller(prepender)) +
+    labs(x = "Strength of U -> A association", y = "ACE and 95% CI")
+```
+
+
+
+
+
 
 
