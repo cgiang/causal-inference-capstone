@@ -384,8 +384,8 @@ mod_Y <- lm(WBLADDER ~ Sleeping_time + SPEARNWEEK + SPOUSEPRES, data = data)
 # The U->A associations have some constraints: we set up values 
 # for the U->A associations that are at most equal to the
 # standard deviation of the residuals from the model for A.
-U_A_assocs <- seq(from = 50, to = 100, by = 10)
-U_Y_assocs <- seq(from = 0.5, to = 1.6, by = 0.1)
+U_A_assocs <- seq(from = 0.5, to = 5, by = 0.5)
+U_Y_assocs <- seq(from = 0.5, to = 1.5, by = 0.1)
 
 # Form all combinations of the U->A and U->Y sensitivity parameters
 sens_data <- expand.grid(U_A = U_A_assocs, U_Y = U_Y_assocs)
@@ -404,7 +404,7 @@ prepender <- function(string, prefix = "U -> Y strength:") paste(prefix, string)
 ggplot(sens_data, aes(x = U_A, y = estimate)) +
     geom_ribbon(aes(ymin = ci_95_lower, ymax = ci_95_upper), fill = "grey70") +
     geom_line() +
-    geom_hline(aes(yintercept = coefficients(mod_Y)["Sleeping_time"]), color = "blue", lty = "dashed") +
+    geom_hline(aes(yintercept = coefficients(mod_Y)["Sleeping_time"]), color = "red", lty = "dashed") +
     geom_hline(aes(yintercept = 0), color = "black") +
     facet_wrap(~U_Y, labeller = as_labeller(prepender)) +
     labs(x = "Strength of U -> A association", y = "ACE and 95% CI")
