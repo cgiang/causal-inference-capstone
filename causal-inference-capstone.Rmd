@@ -13,25 +13,28 @@ ddi <- read_ipums_ddi("atus_00001.xml")
 data <- read_ipums_micro(ddi)
 library(dplyr) 
 data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WBLADDER, WBELIGTIME, caring_HH_adults, SPEARNWEEK)
-data$WBLADDER = as.numeric(data$WBLADDER)
-data$WT06 = as.numeric(data$WT06)
-data$SPEARNWEEK = as.numeric(data$SPEARNWEEK)
 data <- data %>%
-  filter(!is.na(WBLADDER)) %>%
-  filter(WBLADDER > -1 & WBLADDER < 11) %>%
-  filter(SPEDUC < 44) %>%
-  filter(SPEMPSTAT < 7) %>%
-  filter(SPEARNWEEK < 99999)
-```
-
-```{r}
+  filter(!is.na(WBLADDER))%>%
+  filter(WBLADDER > -1 & WBLADDER < 11)%>%
+  filter(SPEDUC < 44)%>%
+  filter(SPEMPSTAT < 7)
+names(data)[1] <- "weight"
+names(data)[2] <- "num_partner"
+names(data)[3] <- "edu_partner"
+names(data)[4] <- "employ_partner"
+names(data)[5] <- "sleeping"
+names(data)[6] <- "traveling"
+names(data)[7] <- "income_fam"
+names(data)[8] <- "life_satis"
+names(data)[9] <- "well_being"
+names(data)[10] <- "householdcare"
+names(data)[11] <- "income_partner"
 summary(data)
 ```
 
 <br><br>
 
 # Causal discovery 
-
 
 ```{r, message = FALSE}
 library(pcalg)
@@ -42,14 +45,13 @@ pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha
 plot(pc_data, main = "")
 ```
 
-
 ```{r, echo=FALSE, message=FALSE, eval=FALSE}
 library(dagitty)
 dag <- dagitty("dag {
 bb=\"0,0,1,1\"
 \"# of partners\" [pos=\"0.321,0.503\"]
 \"education of partners\" [pos=\"0.666,0.214\"]
-\"elderly care\" [pos=\"0.821,0.673\"]
+\"household care\" [pos=\"0.821,0.673\"]
 \"employment status of partners\" [pos=\"0.393,0.208\"]
 \"family income\" [latent,pos=\"0.495,0.350\"]
 \"life satisfaction\" [outcome,pos=\"0.740,0.832\"]
@@ -57,14 +59,14 @@ bb=\"0,0,1,1\"
 \"sleep\" [exposure,pos=\"0.281,0.835\"]
 \"travel\" [pos=\"0.726,0.433\"]
 \"weight\" [pos=\"0.200,0.604\"]
-\"# of partners\" -> \"elderly care\"
+\"# of partners\" -> \"household care\"
 \"# of partners\" -> \"employment status of partners\"
 \"# of partners\" -> \"family income\"
 \"# of partners\" -> \"travel\"
 \"education of partners\" -> \"employment status of partners\"
 \"education of partners\" -> \"family income\"
 \"employment status of partners\" -> \"family income\"
-\"family income\" -> \"elderly care\"
+\"family income\" -> \"household care\"
 \"family income\" -> \"life satisfaction\"
 \"family income\" -> \"sleep\"
 \"family income\" -> \"travel\"
@@ -91,16 +93,14 @@ plot(dag)
 
 ```{r}
 # Convert variable type -- run AFTER using pcalg package
-data$SPOUSEPRES = as.factor(data$SPOUSEPRES)
-data$SPEDUC = as.factor(data$SPEDUC)
-data$SPEMPSTAT = as.factor(data$SPEMPSTAT)
+data$num_partner = as.factor(data$num_partner)
+data$edu_partner = as.factor(data$edu_partner)
+data$employ_partner = as.factor(data$employ_partner)
 ```
-
 
 ```{r}
 summary(data)
 ```
-
 
 ![](dag2.png)
 
@@ -156,25 +156,23 @@ plot(dag)
 
 ```{r}
 library(ggplot2)
-ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER))+geom_point()+geom_smooth()
+ggplot(data=data,aes(x=sleeping,y=life_satis))+geom_point()+geom_smooth()
 ```
 
-
-
 ```{r}
-ggplot(data=data,aes(x=Sleeping_time,y=WBLADDER,color=factor(SPOUSEPRES)))+geom_point()+geom_smooth()
+ggplot(data=data,aes(x=sleeping,y=life_satis,color=factor(num_partner)))+geom_point()+geom_smooth()
 ```
 
 ```{r}
 # Alternatively
-ggplot(data, aes(x = Sleeping_time, y = WBLADDER)) +
+ggplot(data, aes(x = sleeping, y = life_satis)) +
     geom_boxplot() +
-    facet_grid(~SPOUSEPRES) 
+    facet_grid(~num_partner) 
 ```
 
 ```{r}
 library(splines)
-ggplot(data, aes(y = SPOUSEPRES, x = Sleeping_time)) +
+ggplot(data, aes(y = num_partner, x = sleeping)) +
     geom_point() +
     geom_smooth(se = FALSE, color = "blue") +
     geom_smooth(formula = y~ns(x,2), method = "glm",
@@ -182,7 +180,7 @@ ggplot(data, aes(y = SPOUSEPRES, x = Sleeping_time)) +
         se = FALSE, color = "red"
     )
 
-ggplot(data, aes(y = WT06, x = Sleeping_time)) +
+ggplot(data, aes(y = weight, x = sleeping)) +
     geom_point() +
     geom_smooth(se = FALSE, color = "blue") +
     geom_smooth(formula = y~ns(x,2), method = "glm",
@@ -194,74 +192,74 @@ ggplot(data, aes(y = WT06, x = Sleeping_time)) +
 
 
 ```{r, message=FALSE}
-mod1 <- lm(WBLADDER~Sleeping_time, data = data)
+mod1 <- lm(life_satis~sleeping, data = data)
 summary(mod1)
 
-mod2 <- lm(WBELIGTIME~WT06, data = data)
+mod2 <- lm(well_being~weight, data = data)
 summary(mod2)
 ```
 
 ```{r}
-mod3 <- lm(WBLADDER~caring_HH_adults, data = data)
+mod3 <- lm(life_satis~householdcare, data = data)
 summary(mod3)
 
-mod4 <- lm(WBLADDER~WT06, data = data)
+mod4 <- lm(life_satis~weight, data = data)
 summary(mod4)
 ```
 
 ```{r, message=FALSE}
-mod5 <- lm(Sleeping_time~WT06, data = data)
+mod5 <- lm(sleeping~weight, data = data)
 summary(mod5)
 
-mod6 <- lm(WBLADDER~SPOUSEPRES, data = data)
+mod6 <- lm(life_satis~num_partner, data = data)
 summary(mod6)
 
-mod7 <- lm(Sleeping_time~SPOUSEPRES, data = data)
+mod7 <- lm(sleeping~num_partner, data = data)
 summary(mod7)
 
-mod8 <- lm(WBLADDER~WBELIGTIME, data = data)
+mod8 <- lm(life_satis~well_being, data = data)
 summary(mod8)
 
-mod9 <- lm(Sleeping_time~WBELIGTIME, data = data)
+mod9 <- lm(sleeping~well_being, data = data)
 summary(mod9)
 
-mod10 <- lm(WBLADDER~Traveling, data = data)
+mod10 <- lm(life_satis~traveling, data = data)
 summary(mod10)
 ```
 
 ```{r}
-mod11 <- lm(Traveling~caring_HH_adults, data = data)
+mod11 <- lm(traveling~householdcare, data = data)
 summary(mod11)
 ```
 
 ```{r}
-mod12 <- glm(SPOUSEPRES~caring_HH_adults, family = "binomial", data = data)
+mod12 <- glm(num_partner~householdcare, family = "binomial", data = data)
 summary(mod12)
 
-mod13 <- glm(SPOUSEPRES~Traveling, family = "binomial", data = data)
+mod13 <- glm(num_partner~traveling, family = "binomial", data = data)
 summary(mod13)
 
-mod14 <- glm(SPOUSEPRES~SPEMPSTAT, family = "binomial", data = data)
+mod14 <- glm(num_partner~employ_partner, family = "binomial", data = data)
 summary(mod14)
 
-mod15 <- glm(SPEDUC~SPEMPSTAT, , family = "binomial", data = data)
+mod15 <- glm(edu_partner~employ_partner, , family = "binomial", data = data)
 summary(mod15)
 ```
 
 > All associations in the dagitty graph above are checked. Except insignificant associations between life satisfaction and weight, life satisfaction and elderly care, and traveling and elderly care, the rest are all strong associations.
 
 ```{r}
-mod16 <- lm(WBLADDER~Sleeping_time+WBELIGTIME, data = data)
+mod16 <- lm(life_satis~sleeping+well_being, data = data)
 summary(mod16)
 
-mod17 <- lm(WT06~Sleeping_time+WBELIGTIME, data = data)
+mod17 <- lm(weight~sleeping+well_being, data = data)
 summary(mod17)
 ```
 
 > From model 16, controlling for well-being makes sleep and life satisfaction a strong association. Therefore, well-being must be a collider. From model 17, controlling for well-being makes sleep and weight a weak association. Therefore, neither well-being nor weight can be a collider in this set and thus well-being must point to weight and weight must point to sleep.
 
 ```{r}
-mod18 <- lm(WBLADDER~Sleeping_time+SPOUSEPRES, data = data)
+mod18 <- lm(life_satis~sleeping+num_partner, data = data)
 summary(mod18)
 ```
 
@@ -282,7 +280,7 @@ summary(mod18)
 **Linearity?**
 
 ```{r}
-ggplot(data, aes(x = SPEARNWEEK, y = Sleeping_time)) +
+ggplot(data, aes(x = income_partner, y = sleeping)) +
     geom_point() +
     geom_smooth(se = FALSE, color = "blue") +
     geom_smooth(formula = y~x,
@@ -293,12 +291,12 @@ ggplot(data, aes(x = SPEARNWEEK, y = Sleeping_time)) +
 [source code](https://remlapmot.github.io/cibookex-r/ip-weighting-and-marginal-structural-models.html#program-12.4)
 
 ```{r}
-ps_mod = lm(Sleeping_time ~ SPOUSEPRES + SPEARNWEEK, data = data)
+ps_mod = lm(sleeping ~ num_partner + income_partner, data = data)
 
 # estimation of denominator of ip weights
 p <- predict(ps_mod, type = "response")
 ps <-
-  dnorm(data$Sleeping_time,
+  dnorm(data$sleeping,
         p,
         summary(ps_mod)$sigma)
 
@@ -315,17 +313,16 @@ library(survey)
 design <- svydesign(ids = ~0, weights = data$ip_weight, data = data)
 
 msm_fit <- svyglm(
-    WBLADDER ~ Sleeping_time,
+    life_satis ~ sleeping,
     data = data,
     design = design
 )
 summary(msm_fit)
 ```
 
-
 ```{r}
 msm_fit <- svyglm(
-    WBLADDER ~ Sleeping_time*SPOUSEPRES,
+    life_satis ~ sleeping*num_partner,
     data = data,
     design = design
 )
@@ -334,9 +331,8 @@ summary(msm_fit)
 
 ```{r}
 # Comparison
-summary(lm(WBLADDER ~ Sleeping_time + SPOUSEPRES, data = data))
+summary(lm(life_satis ~ sleeping + num_partner, data = data))
 ```
-
 
 ## Sensitivity analysis for unmeasured confounder
 
@@ -365,20 +361,20 @@ sensitivity_analysis_time <- function(.data, model_A, model_Y, assoc_A, assoc_Y)
     .data$U <- U
 
     # Refit model to estimate the causal effect 
-    updated_model <- lm(WBLADDER ~ Sleeping_time + SPEARNWEEK + SPOUSEPRES + U, data = .data)
+    updated_model <- lm(life_satis ~ sleeping + income_partner + num_partner + U, data = .data)
     
     list(c(
-        estimate = unname(coefficients(updated_model)["Sleeping_time"]), 
-        ci_95_lower = confint(updated_model)["Sleeping_time",1],
-        ci_95_upper = confint(updated_model)["Sleeping_time",2]
+        estimate = unname(coefficients(updated_model)["sleeping"]), 
+        ci_95_lower = confint(updated_model)["sleeping",1],
+        ci_95_upper = confint(updated_model)["sleeping",2]
     ))
 }
 
 # Begin the sensitivity analysis
 
 # Fit required models for the sensitivity analysis
-mod_A <- lm(Sleeping_time ~ SPEARNWEEK + SPOUSEPRES, data = data)
-mod_Y <- lm(WBLADDER ~ Sleeping_time + SPEARNWEEK + SPOUSEPRES, data = data)
+mod_A <- lm(sleeping ~ income_partner + num_partner, data = data)
+mod_Y <- lm(life_satis ~ sleeping + income_partner + num_partner, data = data)
 
 # Set up degree of association between U and A and between U and Y
 # The U->A associations have some constraints: we set up values 
@@ -404,15 +400,8 @@ prepender <- function(string, prefix = "U -> Y strength:") paste(prefix, string)
 ggplot(sens_data, aes(x = U_A, y = estimate)) +
     geom_ribbon(aes(ymin = ci_95_lower, ymax = ci_95_upper), fill = "grey70") +
     geom_line() +
-    geom_hline(aes(yintercept = coefficients(mod_Y)["Sleeping_time"]), color = "red", lty = "dashed") +
+    geom_hline(aes(yintercept = coefficients(mod_Y)["sleeping"]), color = "red", lty = "dashed") +
     geom_hline(aes(yintercept = 0), color = "black") +
     facet_wrap(~U_Y, labeller = as_labeller(prepender)) +
     labs(x = "Strength of U -> A association", y = "ACE and 95% CI")
 ```
-
-
-
-
-
-
-
