@@ -34,73 +34,7 @@ summary(data)
 
 <br><br>
 
-# Causal discovery 
-
-```{r, message = FALSE}
-library(pcalg)
-
-suff_stat <- list(C = cor(data), n = nrow(data))
-pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.01, skel.method = "stable.fast")
-
-plot(pc_data, main = "")
-```
-
-```{r, echo=FALSE, message=FALSE, eval=FALSE}
-library(dagitty)
-dag <- dagitty("dag {
-bb=\"0,0,1,1\"
-\"# of partners\" [pos=\"0.321,0.503\"]
-\"education of partners\" [pos=\"0.666,0.214\"]
-\"household care\" [pos=\"0.821,0.673\"]
-\"employment status of partners\" [pos=\"0.393,0.208\"]
-\"family income\" [latent,pos=\"0.495,0.350\"]
-\"life satisfaction\" [outcome,pos=\"0.740,0.832\"]
-\"well-being\" [pos=\"0.476,0.713\"]
-\"sleep\" [exposure,pos=\"0.281,0.835\"]
-\"travel\" [pos=\"0.726,0.433\"]
-\"weight\" [pos=\"0.200,0.604\"]
-\"# of partners\" -> \"household care\"
-\"# of partners\" -> \"employment status of partners\"
-\"# of partners\" -> \"family income\"
-\"# of partners\" -> \"travel\"
-\"education of partners\" -> \"employment status of partners\"
-\"education of partners\" -> \"family income\"
-\"employment status of partners\" -> \"family income\"
-\"family income\" -> \"household care\"
-\"family income\" -> \"life satisfaction\"
-\"family income\" -> \"sleep\"
-\"family income\" -> \"travel\"
-\"life satisfaction\" -> \"# of partners\"
-\"life satisfaction\" -> \"well-being\"
-\"well-being\" -> \"weight\"
-\"sleep\" -> \"# of partners\"
-\"sleep\" -> \"life satisfaction\"
-\"sleep\" -> \"well-being\"
-\"travel\" -> \"life satisfaction\"
-\"weight\" -> \"sleep\"
-}
-")
-plot(dag)
-```
-
-> The total effect cannot be estimated by covariate adjustment.
-
-> The direct effect cannot be estimated by covariate adjustment.
-
-<br><br>
-
 # Subject knowledge causal graph
-
-```{r}
-# Convert variable type -- run AFTER using pcalg package
-data$num_partner = as.factor(data$num_partner)
-data$edu_partner = as.factor(data$edu_partner)
-data$employ_partner = as.factor(data$employ_partner)
-```
-
-```{r}
-summary(data)
-```
 
 ![](dag2.png)
 
@@ -170,6 +104,219 @@ ggplot(data, aes(x = sleeping, y = life_satis)) +
     facet_grid(~num_partner) 
 ```
 
+# Causal discovery
+
+## Using pcalg package
+
+```{r, message = FALSE}
+library(pcalg)
+
+suff_stat <- list(C = cor(data), n = nrow(data))
+pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.01, skel.method = "stable.fast")
+
+plot(pc_data, main = "")
+```
+
+## By hand
+
+```{r, message=FALSE}
+mod1 <- lm(life_satis~sleeping, data = data)
+summary(mod1)
+
+mod2 <- lm(well_being~weight, data = data)
+summary(mod2)
+
+mod3 <- lm(life_satis~householdcare, data = data)
+summary(mod3)
+
+mod4 <- lm(life_satis~weight, data = data)
+summary(mod4)
+
+mod5 <- lm(sleeping~weight, data = data)
+summary(mod5)
+
+mod6 <- lm(life_satis~num_partner, data = data)
+summary(mod6)
+
+mod7 <- lm(sleeping~num_partner, data = data)
+summary(mod7)
+
+mod8 <- lm(sleeping~well_being, data = data)
+summary(mod8)
+
+mod9 <- lm(life_satis~traveling, data = data)
+summary(mod9)
+```
+
+```{r}
+mod10 <- lm(traveling~householdcare, data = data)
+summary(mod10)
+
+mod11 <- lm(life_satis~well_being, data = data)
+summary(mod11)
+```
+
+```{r}
+# Convert variable type -- run AFTER using pcalg package
+# data$num_partner = as.factor(data$num_partner)
+# data$edu_partner = as.factor(data$edu_partner)
+# data$employ_partner = as.factor(data$employ_partner)
+
+# mod12 <- glm(num_partner~householdcare, family = "binomial", data = data)
+# summary(mod12)
+# 
+# mod13 <- glm(num_partner~traveling, family = "binomial", data = data)
+# summary(mod13)
+# 
+# mod14 <- glm(num_partner~employ_partner, family = "binomial", data = data)
+# summary(mod14)
+# 
+# mod15 <- glm(edu_partner~employ_partner, , family = "binomial", data = data)
+# summary(mod15)
+
+mod12 <- lm(num_partner~householdcare, data = data)
+summary(mod12)
+
+mod13 <- lm(num_partner~traveling, data = data)
+summary(mod13)
+
+mod14 <- lm(num_partner~employ_partner, data = data)
+summary(mod14)
+
+mod15 <- lm(edu_partner~employ_partner, data = data)
+summary(mod15)
+```
+
+> All associations (between two nodes) in the dagitty graph above are checked. Except insignificant associations between life satisfaction and well-being, number of partners and household care, number of partners and traveling, and traveling and household care, the rest are all strong associations.
+
+```{r}
+mod16 <- lm(life_satis~sleeping+num_partner, data = data)
+summary(mod16)
+
+mod17 <- lm(life_satis~sleeping+weight, data = data)
+summary(mod17)
+
+mod18 <- lm(weight~sleeping+well_being, data = data)
+summary(mod18)
+```
+
+> From model 16, controlling for num_partner makes sleeping and life satisfaction a significant association. Therefore, num_partner must be a collider.
+
+> From model 17, controlling for weight makes sleeping and life satisfaction a significant association. Therefore, weight must be a collider.
+
+> From model 18, controlling for sleeping makes well-being and weight an insignificant association. Therefore, they must be in one of the equivalence class. To make weight not a collider, well-being must point to sleep and weight must point to well-being.
+
+![](dag3.png)
+
+```{r, echo=FALSE, message=FALSE, eval=FALSE}
+library(dagitty)
+dag <- dagitty("dag {
+\"# partners\" [pos=\"-1.654,0.264\"]
+\"elderly care time\" [pos=\"-0.216,1.101\"]
+\"family income\" [latent,pos=\"-0.960,0.028\"]
+\"life satisfaction\" [outcome,pos=\"-0.638,1.638\"]
+\"sleeping time\" [exposure,pos=\"-1.983,1.629\"]
+\"spouse education\" [pos=\"-0.427,-0.204\"]
+\"spouse employment status\" [pos=\"-1.307,-0.231\"]
+\"spouse weekly earnings\" [pos=\"-0.694,-0.458\"]
+\"traveling time\" [pos=\"-0.277,0.167\"]
+\"well-being\" [pos=\"-1.307,1.287\"]
+weight [pos=\"-1.996,0.499\"]
+\"# partners\" -> \"family income\"
+\"life satisfaction\" -> \"# partners\"
+\"# partners\" -> \"spouse employment status\"
+\"elderly care time\" -> \"life satisfaction\"
+\"family income\" -> \"elderly care time\"
+\"family income\" -> \"life satisfaction\"
+\"family income\" -> \"sleeping time\"
+\"family income\" -> \"spouse weekly earnings\"
+\"family income\" -> \"traveling time\"
+\"sleeping time\" -> \"# partners\"
+\"sleeping time\" -> \"life satisfaction\"
+\"well-being\" -> \"sleeping time\"
+\"sleeping time\" -> weight
+\"spouse education\" -> \"family income\"
+\"spouse education\" -> \"spouse employment status\"
+\"spouse employment status\" -> \"family income\"
+\"traveling time\" -> \"life satisfaction\"
+\"life satisfaction\" -> weight 
+weight -> \"well-being\"
+}
+")
+plot(dag)
+```
+
+```{r, echo=FALSE, message=FALSE, eval=FALSE}
+library(dagitty)
+dag <- dagitty("dag {
+bb=\"0,0,1,1\"
+\"# of partners\" [pos=\"0.321,0.503\"]
+\"education of partners\" [pos=\"0.666,0.214\"]
+\"household care\" [pos=\"0.821,0.673\"]
+\"employment status of partners\" [pos=\"0.393,0.208\"]
+\"family income\" [latent,pos=\"0.495,0.350\"]
+\"life satisfaction\" [outcome,pos=\"0.740,0.832\"]
+\"well-being\" [pos=\"0.476,0.713\"]
+\"sleep\" [exposure,pos=\"0.281,0.835\"]
+\"travel\" [pos=\"0.726,0.433\"]
+\"weight\" [pos=\"0.200,0.604\"]
+\"# of partners\" -> \"household care\"
+\"# of partners\" -> \"employment status of partners\"
+\"# of partners\" -> \"family income\"
+\"# of partners\" -> \"travel\"
+\"education of partners\" -> \"employment status of partners\"
+\"education of partners\" -> \"family income\"
+\"employment status of partners\" -> \"family income\"
+\"family income\" -> \"household care\"
+\"family income\" -> \"life satisfaction\"
+\"family income\" -> \"sleep\"
+\"family income\" -> \"travel\"
+\"life satisfaction\" -> \"# of partners\"
+\"life satisfaction\" -> \"well-being\"
+\"well-being\" -> \"weight\"
+\"sleep\" -> \"# of partners\"
+\"sleep\" -> \"life satisfaction\"
+\"sleep\" -> \"well-being\"
+\"travel\" -> \"life satisfaction\"
+\"weight\" -> \"sleep\"
+}
+")
+plot(dag)
+```
+
+> The total effect cannot be estimated by covariate adjustment.
+
+> The direct effect cannot be estimated by covariate adjustment.
+
+<br><br>
+
+## Comparing two results
+
+> We decide to go with the by hand version right?
+
+<br><br>
+
+# IPW with sensitivity analysis for unmeasured confounder 
+
+## IPW
+
+```{r}
+data <- data %>%
+   filter(SPEARNWEEK < 99999)
+
+# Convert variable type -- run AFTER using pcalg package
+# Not sure if you still need it here
+# data$num_partner = as.factor(data$num_partner)
+# data$edu_partner = as.factor(data$edu_partner)
+# data$employ_partner = as.factor(data$employ_partner)
+```
+
+> To achieve conditional exchangeability, condition on # partners and  family income
+
+> Family income is unmeasured so use proxy = spouse weekly earnings
+
+**Linearity?**
+
 ```{r}
 library(splines)
 ggplot(data, aes(y = num_partner, x = sleeping)) +
@@ -188,96 +335,6 @@ ggplot(data, aes(y = weight, x = sleeping)) +
         se = FALSE, color = "red"
     )
 ```
-
-
-
-```{r, message=FALSE}
-mod1 <- lm(life_satis~sleeping, data = data)
-summary(mod1)
-
-mod2 <- lm(well_being~weight, data = data)
-summary(mod2)
-```
-
-```{r}
-mod3 <- lm(life_satis~householdcare, data = data)
-summary(mod3)
-
-mod4 <- lm(life_satis~weight, data = data)
-summary(mod4)
-```
-
-```{r, message=FALSE}
-mod5 <- lm(sleeping~weight, data = data)
-summary(mod5)
-
-mod6 <- lm(life_satis~num_partner, data = data)
-summary(mod6)
-
-mod7 <- lm(sleeping~num_partner, data = data)
-summary(mod7)
-
-mod8 <- lm(life_satis~well_being, data = data)
-summary(mod8)
-
-mod9 <- lm(sleeping~well_being, data = data)
-summary(mod9)
-
-mod10 <- lm(life_satis~traveling, data = data)
-summary(mod10)
-```
-
-```{r}
-mod11 <- lm(traveling~householdcare, data = data)
-summary(mod11)
-```
-
-```{r}
-mod12 <- glm(num_partner~householdcare, family = "binomial", data = data)
-summary(mod12)
-
-mod13 <- glm(num_partner~traveling, family = "binomial", data = data)
-summary(mod13)
-
-mod14 <- glm(num_partner~employ_partner, family = "binomial", data = data)
-summary(mod14)
-
-mod15 <- glm(edu_partner~employ_partner, , family = "binomial", data = data)
-summary(mod15)
-```
-
-> All associations in the dagitty graph above are checked. Except insignificant associations between life satisfaction and weight, life satisfaction and elderly care, and traveling and elderly care, the rest are all strong associations.
-
-```{r}
-mod16 <- lm(life_satis~sleeping+well_being, data = data)
-summary(mod16)
-
-mod17 <- lm(weight~sleeping+well_being, data = data)
-summary(mod17)
-```
-
-> From model 16, controlling for well-being makes sleep and life satisfaction a strong association. Therefore, well-being must be a collider. From model 17, controlling for well-being makes sleep and weight a weak association. Therefore, neither well-being nor weight can be a collider in this set and thus well-being must point to weight and weight must point to sleep.
-
-```{r}
-mod18 <- lm(life_satis~sleeping+num_partner, data = data)
-summary(mod18)
-```
-
-> From model 18, controlling for number of partners makes sleep and life satisfaction a strong association. Therefore, number of partners must be a collider.
-
-![](dagitty-model.png)
-
-<br><br>
-
-# IPW with sensitivity analysis for unmeasured confounder 
-
-## IPW
-
-> To achieve conditional exchangeability, condition on # partners and  family income
-
-> Family income is unmeasured so use proxy = spouse weekly earnings
-
-**Linearity?**
 
 ```{r}
 ggplot(data, aes(x = income_partner, y = sleeping)) +
