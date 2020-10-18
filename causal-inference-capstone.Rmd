@@ -302,7 +302,7 @@ plot(dag)
 
 ```{r}
 data <- data %>%
-   filter(SPEARNWEEK < 99999)
+   filter(income_partner < 99999)
 
 # Convert variable type -- run AFTER using pcalg package
 # Not sure if you still need it here
