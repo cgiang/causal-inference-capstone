@@ -112,7 +112,7 @@ ggplot(data, aes(x = sleeping, y = life_satis)) +
 library(pcalg)
 
 suff_stat <- list(C = cor(data), n = nrow(data))
-pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.01, skel.method = "stable.fast")
+pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.05, skel.method = "stable.fast")
 
 plot(pc_data, main = "")
 ```
