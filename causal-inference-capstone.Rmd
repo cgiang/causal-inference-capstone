@@ -13,11 +13,15 @@ ddi <- read_ipums_ddi("atus_00001.xml")
 data <- read_ipums_micro(ddi)
 library(dplyr) 
 data <- select(data, WT06, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WBLADDER, WBELIGTIME, caring_HH_adults, SPEARNWEEK)
+```
+
+
+```{r,eval=TRUE, warning=FALSE, message=FALSE}
 data <- data %>%
   filter(!is.na(WBLADDER))%>%
   filter(WBLADDER > -1 & WBLADDER < 11)%>%
   filter(SPEDUC < 44)%>%
-  filter(SPEMPSTAT < 7)
+  filter(SPEMPSTAT < 7) 
 names(data)[1] <- "weight"
 names(data)[2] <- "num_partner"
 names(data)[3] <- "edu_partner"
@@ -108,13 +112,13 @@ ggplot(data, aes(x = sleeping, y = life_satis)) +
 
 ## Using pcalg package
 
-```{r, message = FALSE}
+```{r, message = FALSE, fig.height=7}
 library(pcalg)
 
 suff_stat <- list(C = cor(data), n = nrow(data))
 pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.05, skel.method = "stable.fast")
 
-plot(pc_data, main = "")
+plot(pc_data, main = "Pcalg Causal Graph")
 ```
 
 ## By hand
@@ -296,82 +300,114 @@ plot(dag)
 
 <br><br>
 
+# Exploratory Data Analysis
+
+```{r,eval=TRUE, warning=FALSE, message=FALSE}
+library(ipumsr)
+ddi <- read_ipums_ddi("atus_00001.xml")
+time_use <- read_ipums_micro(ddi)
+library(dplyr) 
+time_use <- select(time_use, SPOUSEPRES, SPEDUC, SPEMPSTAT, Sleeping_time, Traveling, FAMINCOME, WBLADDER, WBELIGTIME, caring_HH_adults, SPEARNWEEK)
+```
+
+```{r,eval=TRUE, warning=FALSE, message=FALSE}
+time_use <- time_use %>%
+  filter(!is.na(WBLADDER))%>%
+  filter(WBLADDER > -1 & WBLADDER < 11)%>%
+  filter(SPEDUC < 44)%>%
+  filter(SPEMPSTAT < 7) %>%
+  filter(!is.na(SPEARNWEEK) & SPEARNWEEK < 99998) 
+  
+names(time_use)[1] <- "num_partner"
+names(time_use)[2] <- "partner_edu"
+names(time_use)[3] <- "partner_employ"
+names(time_use)[4] <- "sleeping_time"
+names(time_use)[5] <- "traveling_time"
+names(time_use)[6] <- "income_fam"
+names(time_use)[7] <- "life_satis"
+names(time_use)[8] <- "well_being"
+names(time_use)[9] <- "elder_care"
+names(time_use)[10] <- "partner_income"
+summary(time_use)
+```
+
+```{r}
+time_use$num_partner = as.factor(time_use$num_partner)
+time_use$partner_edu = as.factor(time_use$partner_edu)
+time_use$partner_employ = as.factor(time_use$partner_employ)
+```
+
+```{r}
+summary(time_use)
+```
+
+
+
+```{r}
+ggplot(time_use, aes(x=sleeping_time, y=life_satis, fill=partner_employ)) + 
+  geom_boxplot(alpha=0.5) +
+  scale_fill_discrete(name = "Partner's Employment", labels = c("Employed - at work", "Employed - not at work", "Not Employed", "Retired", "Disabled", "Unable to work")) + 
+  ggtitle("Sleeping time vs Life satisfaction") +
+  ylab("Life satisfaction level") + xlab("Sleeping time (minutes)")
+```
+
+
+
+```{r, fig.width=6,fig.height=4}
+ggplot(time_use, aes(x=traveling_time, y=partner_income, fill=num_partner)) + 
+  geom_boxplot(alpha=0.5) +
+  scale_fill_discrete(name = "Partner's Employment", labels = c("Spouse present", "Unmarried partner")) + 
+  ggtitle("Sleeping time vs Life satisfaction") +
+  ylab("Partner's weekly income (dollars)") + xlab("Traveling (minutes)")
+```
+
+
+
+```{r, message=FALSE, fig.width=7,fig.height=5}
+ggplot(time_use, aes(life_satis)) + geom_bar(aes(fill = partner_edu))+
+  theme_classic()+
+  scale_fill_discrete(name = "Partner's Education", labels = c("< 1st grade", "1st - 4th grade", "5th-6th grade", "7th-8th grade", "9th grade", "10th grade", "11th grade", "12th grade = no diploma", "GED", "HS diploma", "Some college", "Associate - vocational", "Associate - academic", "Bachelor's", "Master's", "Professional school", "Doctoral")) + 
+  ggtitle("Life satisfaction distribution") +
+  xlab("Life satisfaction level") + ylab("count")
+```
+
 # IPW with sensitivity analysis for unmeasured confounder 
 
 ## IPW
-
-```{r}
-data <- data %>%
-   filter(income_partner < 99999)
-
-# Convert variable type -- run AFTER using pcalg package
-# Not sure if you still need it here
-# data$num_partner = as.factor(data$num_partner)
-# data$edu_partner = as.factor(data$edu_partner)
-# data$employ_partner = as.factor(data$employ_partner)
-```
 
 > To achieve conditional exchangeability, condition on # partners and  family income
 
 > Family income is unmeasured so use proxy = spouse weekly earnings
 
-**Linearity?**
 
-```{r}
-library(splines)
-ggplot(data, aes(y = num_partner, x = sleeping)) +
-    geom_point() +
-    geom_smooth(se = FALSE, color = "blue") +
-    geom_smooth(formula = y~ns(x,2), method = "glm",
-        method.args = list(family="binomial"),
-        se = FALSE, color = "red"
-    )
-
-ggplot(data, aes(y = weight, x = sleeping)) +
-    geom_point() +
-    geom_smooth(se = FALSE, color = "blue") +
-    geom_smooth(formula = y~ns(x,2), method = "glm",
-        method.args = list(family="binomial"),
-        se = FALSE, color = "red"
-    )
-```
-
-```{r}
-ggplot(data, aes(x = income_partner, y = sleeping)) +
-    geom_point() +
-    geom_smooth(se = FALSE, color = "blue") +
-    geom_smooth(formula = y~x,
-        se = FALSE, color = "red"
-    )
-```
 
 [source code](https://remlapmot.github.io/cibookex-r/ip-weighting-and-marginal-structural-models.html#program-12.4)
 
 ```{r}
-ps_mod = lm(sleeping ~ num_partner + income_partner, data = data)
+ps_mod = lm(sleeping_time ~ num_partner + partner_income, data = time_use)
 
 # estimation of denominator of ip weights
 p <- predict(ps_mod, type = "response")
 ps <-
-  dnorm(data$sleeping,
+  dnorm(time_use$sleeping_time,
         p,
         summary(ps_mod)$sigma)
 
 # estimation of ip weights
 
-data$ip_weight <- 1 / ps
-summary(data$ip_weight)
+time_use$ip_weight <- 1 / ps
+summary(time_use$ip_weight)
 ```
 
 
 ```{r, message=FALSE}
 library(survey) 
 
-design <- svydesign(ids = ~0, weights = data$ip_weight, data = data)
+design <- svydesign(ids = ~0, weights = time_use$ip_weight, data = time_use)
 
 msm_fit <- svyglm(
-    life_satis ~ sleeping,
-    data = data,
+    life_satis ~ sleeping_time,
+    data = time_use,
     design = design
 )
 summary(msm_fit)
@@ -379,16 +415,25 @@ summary(msm_fit)
 
 ```{r}
 msm_fit <- svyglm(
-    life_satis ~ sleeping*num_partner,
-    data = data,
+    life_satis ~ sleeping_time*num_partner,
+    data = time_use,
     design = design
 )
 summary(msm_fit)
 ```
 
 ```{r}
-# Comparison
-summary(lm(life_satis ~ sleeping + num_partner, data = data))
+msm_fit <- svyglm(
+    life_satis ~ sleeping_time*partner_employ,
+    data = time_use,
+    design = design
+)
+summary(msm_fit)
+```
+
+```{r}
+# Comparison - OK
+summary(lm(life_satis ~ sleeping_time + num_partner, data = time_use, weights = time_use$ip_weight))
 ```
 
 ## Sensitivity analysis for unmeasured confounder
@@ -418,20 +463,20 @@ sensitivity_analysis_time <- function(.data, model_A, model_Y, assoc_A, assoc_Y)
     .data$U <- U
 
     # Refit model to estimate the causal effect 
-    updated_model <- lm(life_satis ~ sleeping + income_partner + num_partner + U, data = .data)
+    updated_model <- lm(life_satis ~ sleeping_time + partner_income + num_partner + U, data = .data)
     
     list(c(
-        estimate = unname(coefficients(updated_model)["sleeping"]), 
-        ci_95_lower = confint(updated_model)["sleeping",1],
-        ci_95_upper = confint(updated_model)["sleeping",2]
+        estimate = unname(coefficients(updated_model)["sleeping_time"]), 
+        ci_95_lower = confint(updated_model)["sleeping_time",1],
+        ci_95_upper = confint(updated_model)["sleeping_time",2]
     ))
 }
 
 # Begin the sensitivity analysis
 
 # Fit required models for the sensitivity analysis
-mod_A <- lm(sleeping ~ income_partner + num_partner, data = data)
-mod_Y <- lm(life_satis ~ sleeping + income_partner + num_partner, data = data)
+mod_A <- lm(sleeping_time ~ partner_income + num_partner, data = time_use)
+mod_Y <- lm(life_satis ~ sleeping_time + partner_income + num_partner, data = time_use)
 
 # Set up degree of association between U and A and between U and Y
 # The U->A associations have some constraints: we set up values 
@@ -446,7 +491,7 @@ sens_data <- expand.grid(U_A = U_A_assocs, U_Y = U_Y_assocs)
 # Run sensitivity analysis
 sens_data <- sens_data %>%
     group_by(U_A, U_Y) %>%
-    mutate(sens = sensitivity_analysis_time(data, mod_A, mod_Y, U_A, U_Y))
+    mutate(sens = sensitivity_analysis_time(time_use, mod_A, mod_Y, U_A, U_Y))
 # Collect sensitivity analysis results in a data.frame
 sens_data <- bind_cols(sens_data[,1:2], bind_rows(sens_data$sens))
 
@@ -457,7 +502,7 @@ prepender <- function(string, prefix = "U -> Y strength:") paste(prefix, string)
 ggplot(sens_data, aes(x = U_A, y = estimate)) +
     geom_ribbon(aes(ymin = ci_95_lower, ymax = ci_95_upper), fill = "grey70") +
     geom_line() +
-    geom_hline(aes(yintercept = coefficients(mod_Y)["sleeping"]), color = "red", lty = "dashed") +
+    geom_hline(aes(yintercept = coefficients(mod_Y)["sleeping_time"]), color = "red", lty = "dashed") +
     geom_hline(aes(yintercept = 0), color = "black") +
     facet_wrap(~U_Y, labeller = as_labeller(prepender)) +
     labs(x = "Strength of U -> A association", y = "ACE and 95% CI")
