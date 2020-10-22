@@ -118,7 +118,7 @@ library(pcalg)
 suff_stat <- list(C = cor(data), n = nrow(data))
 pc_data <- pc(suff_stat, indepTest = gaussCItest, labels = colnames(data), alpha = 0.05, skel.method = "stable.fast")
 
-plot(pc_data, main = "Pcalg Causal Graph")
+plot(pc_data, main = "pcalg graph",  cex.main=1.5, cex.sub=2.5)
 ```
 
 ## By hand
@@ -344,21 +344,31 @@ summary(time_use)
 
 
 ```{r}
-ggplot(time_use, aes(x=sleeping_time, y=life_satis, fill=partner_employ)) + 
+library(ggplot2)
+ggplot(time_use, aes(x=partner_employ, y=life_satis, fill=partner_employ)) + 
   geom_boxplot(alpha=0.5) +
   scale_fill_discrete(name = "Partner's Employment", labels = c("Employed - at work", "Employed - not at work", "Not Employed", "Retired", "Disabled", "Unable to work")) + 
-  ggtitle("Sleeping time vs Life satisfaction") +
-  ylab("Life satisfaction level") + xlab("Sleeping time (minutes)")
+  ggtitle("Partner's employment vs Life satisfaction") +
+  ylab("Life satisfaction level") + xlab("Partner's employment")
 ```
 
 
 
 ```{r, fig.width=6,fig.height=4}
-ggplot(time_use, aes(x=traveling_time, y=partner_income, fill=num_partner)) + 
+ggplot(time_use, aes(x=num_partner, y=life_satis, fill=num_partner)) + 
   geom_boxplot(alpha=0.5) +
   scale_fill_discrete(name = "Partner's Employment", labels = c("Spouse present", "Unmarried partner")) + 
+  ggtitle("Partner status vs Life satisfaction") +
+  ylab("Life satisfaction level") + xlab("Partner status")
+```
+
+
+```{r, fig.width=6,fig.height=4}
+ggplot(time_use, aes(x=sleeping_time, y=life_satis)) + 
+  geom_boxplot(alpha=0.5) +
   ggtitle("Sleeping time vs Life satisfaction") +
-  ylab("Partner's weekly income (dollars)") + xlab("Traveling (minutes)")
+  ylab("Life satisfaction level") + xlab("Sleeping time")+
+  facet_wrap(~num_partner)
 ```
 
 
@@ -371,6 +381,8 @@ ggplot(time_use, aes(life_satis)) + geom_bar(aes(fill = partner_edu))+
   xlab("Life satisfaction level") + ylab("count")
 ```
 
+
+
 # IPW with sensitivity analysis for unmeasured confounder 
 
 ## IPW
@@ -378,6 +390,35 @@ ggplot(time_use, aes(life_satis)) + geom_bar(aes(fill = partner_edu))+
 > To achieve conditional exchangeability, condition on # partners and  family income
 
 > Family income is unmeasured so use proxy = spouse weekly earnings
+
+**Linearity?**
+
+```{r}
+library(splines)
+ggplot(time_use, aes(x = num_partner, y = sleeping_time)) +
+    geom_point() +
+    geom_smooth(se = FALSE, color = "blue") +
+    geom_smooth(formula = y~x,
+        se = FALSE, color = "red"
+    )
+
+ggplot(time_use, aes(x = weight, y = sleeping_time)) +
+    geom_point() +
+    geom_smooth(se = FALSE, color = "blue") +
+    geom_smooth(formula = y~x,
+        se = FALSE, color = "red"
+    )
+```
+
+```{r}
+ggplot(time_use, aes(x = partner_income, y = sleeping_time)) +
+    geom_point() +
+    geom_smooth(se = FALSE, color = "blue") +
+    geom_smooth(formula = y~x,
+        se = FALSE, color = "red"
+    )
+```
+
 
 
 
@@ -433,7 +474,7 @@ summary(msm_fit)
 
 ```{r}
 # Comparison - OK
-summary(lm(life_satis ~ sleeping_time + num_partner, data = time_use, weights = time_use$ip_weight))
+summary(lm(life_satis ~ sleeping_time, data = time_use, weights = time_use$ip_weight))
 ```
 
 ## Sensitivity analysis for unmeasured confounder
