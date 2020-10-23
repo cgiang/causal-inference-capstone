@@ -23,7 +23,7 @@ data <- data %>%
   filter(SPEDUC < 44)%>%
   filter(SPEMPSTAT < 7) 
 names(data)[1] <- "weight"
-names(data)[2] <- "num_partner"
+names(data)[2] <- "marital_status"
 names(data)[3] <- "edu_partner"
 names(data)[4] <- "employ_partner"
 names(data)[5] <- "sleeping"
@@ -39,8 +39,6 @@ summary(data)
 <br><br>
 
 # Subject knowledge causal graph
-
-![](dag2.png)
 
 > Adjustment, total effect: # partners, family income
 
@@ -98,14 +96,14 @@ ggplot(data=data,aes(x=sleeping,y=life_satis))+geom_point()+geom_smooth()
 ```
 
 ```{r}
-ggplot(data=data,aes(x=sleeping,y=life_satis,color=factor(num_partner)))+geom_point()+geom_smooth()
+ggplot(data=data,aes(x=sleeping,y=life_satis,color=factor(marital_status)))+geom_point()+geom_smooth()
 ```
 
 ```{r}
 # Alternatively
 ggplot(data, aes(x = sleeping, y = life_satis)) +
     geom_boxplot() +
-    facet_grid(~num_partner) 
+    facet_grid(~marital_status) 
 ```
 
 # Causal discovery
@@ -139,10 +137,10 @@ summary(mod4)
 mod5 <- lm(sleeping~weight, data = data)
 summary(mod5)
 
-mod6 <- lm(life_satis~num_partner, data = data)
+mod6 <- lm(life_satis~marital_status, data = data)
 summary(mod6)
 
-mod7 <- lm(sleeping~num_partner, data = data)
+mod7 <- lm(sleeping~marital_status, data = data)
 summary(mod7)
 
 mod8 <- lm(sleeping~well_being, data = data)
@@ -161,30 +159,13 @@ summary(mod11)
 ```
 
 ```{r}
-# Convert variable type -- run AFTER using pcalg package
-# data$num_partner = as.factor(data$num_partner)
-# data$edu_partner = as.factor(data$edu_partner)
-# data$employ_partner = as.factor(data$employ_partner)
-
-# mod12 <- glm(num_partner~householdcare, family = "binomial", data = data)
-# summary(mod12)
-# 
-# mod13 <- glm(num_partner~traveling, family = "binomial", data = data)
-# summary(mod13)
-# 
-# mod14 <- glm(num_partner~employ_partner, family = "binomial", data = data)
-# summary(mod14)
-# 
-# mod15 <- glm(edu_partner~employ_partner, , family = "binomial", data = data)
-# summary(mod15)
-
-mod12 <- lm(num_partner~householdcare, data = data)
+mod12 <- lm(marital_status~householdcare, data = data)
 summary(mod12)
 
-mod13 <- lm(num_partner~traveling, data = data)
+mod13 <- lm(marital_status~traveling, data = data)
 summary(mod13)
 
-mod14 <- lm(num_partner~employ_partner, data = data)
+mod14 <- lm(marital_status~employ_partner, data = data)
 summary(mod14)
 
 mod15 <- lm(edu_partner~employ_partner, data = data)
@@ -194,7 +175,7 @@ summary(mod15)
 > All associations (between two nodes) in the dagitty graph above are checked. Except insignificant associations between life satisfaction and well-being, number of partners and household care, number of partners and traveling, and traveling and household care, the rest are all strong associations.
 
 ```{r}
-mod16 <- lm(life_satis~sleeping+num_partner, data = data)
+mod16 <- lm(life_satis~sleeping+marital_status, data = data)
 summary(mod16)
 
 mod17 <- lm(life_satis~sleeping+weight, data = data)
@@ -204,13 +185,11 @@ mod18 <- lm(weight~sleeping+well_being, data = data)
 summary(mod18)
 ```
 
-> From model 16, controlling for num_partner makes sleeping and life satisfaction a significant association. Therefore, num_partner must be a collider.
+> From model 16, controlling for marital_status makes sleeping and life satisfaction a significant association. Therefore, marital_status must be a collider.
 
 > From model 17, controlling for weight makes sleeping and life satisfaction a significant association. Therefore, weight must be a collider.
 
 > From model 18, controlling for sleeping makes well-being and weight an insignificant association. Therefore, they must be in one of the equivalence class. To make weight not a collider, well-being must point to sleep and weight must point to well-being.
-
-![](dag3.png)
 
 ```{r, echo=FALSE, message=FALSE, eval=FALSE}
 library(dagitty)
@@ -318,7 +297,7 @@ time_use <- time_use %>%
   filter(SPEMPSTAT < 7) %>%
   filter(!is.na(SPEARNWEEK) & SPEARNWEEK < 99998) 
   
-names(time_use)[1] <- "num_partner"
+names(time_use)[1] <- "marital_status"
 names(time_use)[2] <- "partner_edu"
 names(time_use)[3] <- "partner_employ"
 names(time_use)[4] <- "sleeping_time"
@@ -332,7 +311,7 @@ summary(time_use)
 ```
 
 ```{r}
-time_use$num_partner = as.factor(time_use$num_partner)
+time_use$marital_status = as.factor(time_use$marital_status)
 time_use$partner_edu = as.factor(time_use$partner_edu)
 time_use$partner_employ = as.factor(time_use$partner_employ)
 ```
@@ -355,7 +334,7 @@ ggplot(time_use, aes(x=partner_employ, y=life_satis, fill=partner_employ)) +
 
 
 ```{r, fig.width=6,fig.height=4}
-ggplot(time_use, aes(x=num_partner, y=life_satis, fill=num_partner)) + 
+ggplot(time_use, aes(x=marital_status, y=life_satis, fill=marital_status)) + 
   geom_boxplot(alpha=0.5) +
   scale_fill_discrete(name = "Partner's Employment", labels = c("Spouse present", "Unmarried partner")) + 
   ggtitle("Partner status vs Life satisfaction") +
@@ -368,7 +347,7 @@ ggplot(time_use, aes(x=sleeping_time, y=life_satis)) +
   geom_boxplot(alpha=0.5) +
   ggtitle("Sleeping time vs Life satisfaction") +
   ylab("Life satisfaction level") + xlab("Sleeping time")+
-  facet_wrap(~num_partner)
+  facet_wrap(~marital_status)
 ```
 
 
@@ -395,19 +374,19 @@ ggplot(time_use, aes(life_satis)) + geom_bar(aes(fill = partner_edu))+
 
 ```{r}
 library(splines)
-ggplot(time_use, aes(x = num_partner, y = sleeping_time)) +
+ggplot(time_use, aes(x = marital_status, y = sleeping_time)) +
     geom_point() +
     geom_smooth(se = FALSE, color = "blue") +
     geom_smooth(formula = y~x,
         se = FALSE, color = "red"
     )
 
-ggplot(time_use, aes(x = weight, y = sleeping_time)) +
-    geom_point() +
-    geom_smooth(se = FALSE, color = "blue") +
-    geom_smooth(formula = y~x,
-        se = FALSE, color = "red"
-    )
+# ggplot(time_use, aes(x = weight, y = sleeping_time)) +
+#     geom_point() +
+#     geom_smooth(se = FALSE, color = "blue") +
+#     geom_smooth(formula = y~x,
+#         se = FALSE, color = "red"
+#     )
 ```
 
 ```{r}
@@ -425,7 +404,7 @@ ggplot(time_use, aes(x = partner_income, y = sleeping_time)) +
 [source code](https://remlapmot.github.io/cibookex-r/ip-weighting-and-marginal-structural-models.html#program-12.4)
 
 ```{r}
-ps_mod = lm(sleeping_time ~ num_partner + partner_income, data = time_use)
+ps_mod = lm(sleeping_time ~ marital_status + partner_income, data = time_use)
 
 # estimation of denominator of ip weights
 p <- predict(ps_mod, type = "response")
@@ -456,7 +435,7 @@ summary(msm_fit)
 
 ```{r}
 msm_fit <- svyglm(
-    life_satis ~ sleeping_time*num_partner,
+    life_satis ~ sleeping_time*marital_status,
     data = time_use,
     design = design
 )
@@ -504,7 +483,7 @@ sensitivity_analysis_time <- function(.data, model_A, model_Y, assoc_A, assoc_Y)
     .data$U <- U
 
     # Refit model to estimate the causal effect 
-    updated_model <- lm(life_satis ~ sleeping_time + partner_income + num_partner + U, data = .data)
+    updated_model <- lm(life_satis ~ sleeping_time + partner_income + marital_status + U, data = .data)
     
     list(c(
         estimate = unname(coefficients(updated_model)["sleeping_time"]), 
@@ -516,8 +495,8 @@ sensitivity_analysis_time <- function(.data, model_A, model_Y, assoc_A, assoc_Y)
 # Begin the sensitivity analysis
 
 # Fit required models for the sensitivity analysis
-mod_A <- lm(sleeping_time ~ partner_income + num_partner, data = time_use)
-mod_Y <- lm(life_satis ~ sleeping_time + partner_income + num_partner, data = time_use)
+mod_A <- lm(sleeping_time ~ partner_income + marital_status, data = time_use)
+mod_Y <- lm(life_satis ~ sleeping_time + partner_income + marital_status, data = time_use)
 
 # Set up degree of association between U and A and between U and Y
 # The U->A associations have some constraints: we set up values 
